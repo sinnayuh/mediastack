@@ -1,2 +1,2 @@
 # mediastack
-mediastack for umbrel
+run on portainer 
