@@ -1,0 +1,111 @@
+version: "3"
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    hostname: mediastack
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 6881:6881     # qbittorent
+      - 6881:6881/udp # qbittorent
+      - 8080:8080     # qbittorent
+      - 8191:8191     # flaresolverr
+      - 9696:9696     # prowlarr
+      - 8989:8989     # sonarr
+      - 7878:7878     # radarr
+    environment:
+      - VPN_SERVICE_PROVIDER=mullvad
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=REDACTED
+      - WIREGUARD_ADDRESSES=REDACTED
+      - SERVER_CITIES=Brussels
+      - TZ=Europe/London
+    volumes:
+      - /srv/docker/gluetun/data/config:/gluetun
+    restart: always
+    networks:
+      gluetun:
+        ipv4_address: 172.26.0.2
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /srv/docker/prowlarr/data/config:/config
+    restart: unless-stopped
+    depends_on:
+      - gluetun
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    network_mode: "service:gluetun"
+    environment:
+      - TZ=Europe/London
+    restart: unless-stopped 
+    depends_on:
+      - gluetun
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=6881
+    volumes:
+      - /srv/docker/qbittorrent/data/config:/config
+      - /home/umbrel/umbrel/data/storage/downloads:/downloads
+    restart: unless-stopped
+    depends_on:
+      - gluetun
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /srv/docker/radarr/data/config:/config
+      - /home/umbrel/umbrel/data/storage/downloads:/downloads
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /srv/docker/sonarr/data/config:/config
+      - /home/umbrel/umbrel/data/storage/downloads:/downloads
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+
+networks:
+  gluetun:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.26.0.0/16
+          gateway: 172.26.0.1
+
